@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Steam Common Games</title>
+<style>
+  :root {
+    --bg: #12161c; --panel: #1a2029; --panel-2: #222a35; --line: #2c3542;
+    --text: #e6ebf2; --muted: #8b97a8; --accent: #5aa9ff; --accent-dim: #2b4f7a;
+    --good: #6cc56c; --warn: #e3b341; --bad: #e5534b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+
+  .app { display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  main { display: flex; flex-direction: column; min-height: 0; }
+
+  .me { display: flex; gap: 10px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .me img { width: 40px; height: 40px; border-radius: 6px; }
+  .me .who { flex: 1; min-width: 0; }
+  .me .who b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .me .who span { color: var(--muted); font-size: 12px; }
+  .icon-btn { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--muted); }
+  .icon-btn:hover { color: var(--text); border-color: var(--muted); }
+
+  .side-tools { padding: 12px 16px 8px; display: grid; gap: 8px; }
+  .search { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; outline: none; }
+  .search:focus { border-color: var(--accent); }
+  .side-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  .side-meta button { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; }
+
+  .friends { list-style: none; margin: 0; padding: 4px 8px 16px; overflow-y: auto; flex: 1; }
+  .friend { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; cursor: pointer; user-select: none; }
+  .friend:hover { background: var(--panel-2); }
+  .friend.sel { background: var(--accent-dim); }
+  .friend img { width: 32px; height: 32px; border-radius: 5px; flex: none; }
+  .friend .nm { flex: 1; min-width: 0; }
+  .friend .nm b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .friend .nm span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .friend .nm span.on { color: var(--accent); }
+  .friend .nm span.game { color: var(--good); }
+  .check { width: 18px; height: 18px; border: 2px solid var(--line); border-radius: 4px; flex: none; display: grid; place-items: center; }
+  .friend.sel .check { background: var(--accent); border-color: var(--accent); }
+  .friend.sel .check::after { content: ""; width: 8px; height: 4px; border: 2px solid #0b1220; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+
+  header.top { padding: 14px 20px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px 2px 2px; font-size: 13px; }
+  .chip img { width: 24px; height: 24px; border-radius: 50%; }
+  .chip button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 15px; line-height: 1; }
+  .chip button:hover { color: var(--text); }
+  .chip.private { border-color: var(--warn); }
+  .chip.loading { opacity: .6; }
+  .hint { color: var(--muted); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { background: none; border: 0; padding: 6px 12px; cursor: pointer; color: var(--muted); }
+  .seg button.on { background: var(--accent-dim); color: var(--text); }
+  .toolbar select, .toolbar .search { width: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .toolbar .search { flex: 1; min-width: 160px; }
+  .count { margin-left: auto; color: var(--muted); }
+
+  .notice { margin: 12px 20px 0; padding: 8px 12px; border-radius: 8px; background: #2d2512; border: 1px solid #5a4818; color: #f0d58a; font-size: 13px; }
+  .notice.err { background: #2d1416; border-color: #6b2a2c; color: #ffb4b0; }
+
+  .results { overflow-y: auto; flex: 1; padding: 16px 20px 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .game { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; text-decoration: none; color: inherit; transition: transform .12s, border-color .12s; }
+  .game:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .game .art { aspect-ratio: 460 / 215; background: var(--panel-2); display: grid; place-items: center; overflow: hidden; }
+  .game .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .game .art img.icon { width: 48px; height: 48px; object-fit: contain; }
+  .game .body { padding: 10px 12px 12px; display: grid; gap: 6px; }
+  .game .title { font-weight: 600; line-height: 1.25; }
+  .game .meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .owners { display: flex; }
+  .owners img { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--panel); margin-left: -6px; }
+  .owners img:first-child { margin-left: 0; }
+  .badge { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+  .badge.all { background: #18361c; border-color: #2f6b36; color: #9be29b; }
+
+  .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty h2 { color: var(--text); font-weight: 600; margin: 0 0 6px; }
+
+  .setup { max-width: 520px; margin: 8vh auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px; display: grid; gap: 16px; }
+  .setup h1 { margin: 0; font-size: 22px; }
+  .setup p { margin: 0; color: var(--muted); }
+  .setup label { display: grid; gap: 6px; font-weight: 500; }
+  .setup label small { color: var(--muted); font-weight: 400; }
+  .setup .search { padding: 10px 12px; }
+  .btn { background: var(--accent); color: #08111d; border: 0; border-radius: 8px; padding: 10px 16px; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; height: auto; min-height: 100vh; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const state = {
+  me: null, friends: [], selected: [],         // selected = ordered steamids
+  libs: {},                                     // steamid -> {private, games, error} | "loading"
+  mode: "all", sort: "name", gameQuery: "", friendQuery: "",
+  error: null,
+};
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
+  return j;
+}
+
+// ------------------------------------------------------------------ setup
+function renderSetup(msg) {
+  $("#root").innerHTML = `
+    <form class="setup" id="setup">
+      <h1>Steam Common Games</h1>
+      <p>Pick friends, see which games you all own. You need a Steam Web API key — get one free at
+         <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener">steamcommunity.com/dev/apikey</a>
+         (any domain name works, e.g. <code>localhost</code>).</p>
+      ${msg ? `<div class="notice err" style="margin:0">${esc(msg)}</div>` : ""}
+      <label>Steam Web API key
+        <input class="search" name="api_key" autocomplete="off" spellcheck="false" placeholder="32-character key" required>
+      </label>
+      <label>Your Steam profile
+        <small>Profile URL, custom URL name, or 17-digit SteamID64</small>
+        <input class="search" name="steam_id" spellcheck="false" placeholder="https://steamcommunity.com/id/yourname" required>
+      </label>
+      <p style="font-size:12px">Your key is saved only on this computer, in <code>~/.config/steam-common-games/config.json</code>.</p>
+      <button class="btn" type="submit">Continue</button>
+    </form>`;
+  $("#setup").addEventListener("submit", async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target), btn = $("button", e.target);
+    btn.disabled = true; btn.textContent = "Checking…";
+    try {
+      await api("/api/config", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: fd.get("api_key"), steam_id: fd.get("steam_id") }) });
+      boot();
+    } catch (err) { renderSetup(err.message); }
+  });
+}
+
+// ------------------------------------------------------------------ main
+async function boot() {
+  const cfg = await api("/api/config");
+  if (!cfg.configured) return renderSetup();
+  renderShell();
+  await loadFriends();
+}
+
+async function loadFriends(refresh = false) {
+  $("#friends").innerHTML = `<li class="empty"><div class="spinner"></div>Loading friends…</li>`;
+  try {
+    const d = await api("/api/friends" + (refresh ? "?refresh=1" : ""));
+    state.me = d.me; state.friends = d.friends; state.error = null;
+    if (refresh) { state.libs = {}; }
+    renderMe(); renderFriends();
+    await loadLibraries([state.me.steamid, ...state.selected], refresh);
+  } catch (err) {
+    state.error = err.message;
+    $("#friends").innerHTML = `<li class="empty">${esc(err.message)}</li>`;
+    renderResults();
+  }
+}
+
+async function loadLibraries(ids, refresh = false) {
+  const need = ids.filter(id => refresh || !state.libs[id]);
+  if (!need.length) return renderResults();
+  need.forEach(id => state.libs[id] = "loading");
+  renderChips(); renderResults();
+  try {
+    const d = await api(`/api/games?ids=${need.join(",")}${refresh ? "&refresh=1" : ""}`);
+    d.libraries.forEach(l => state.libs[l.steamid] = l);
+  } catch (err) {
+    need.forEach(id => state.libs[id] = { steamid: id, games: [], error: err.message });
+  }
+  renderChips(); renderResults();
+}
+
+function renderShell() {
+  $("#root").innerHTML = `
+    <div class="app">
+      <aside>
+        <div class="me" id="me"></div>
+        <div class="side-tools">
+          <input class="search" id="fq" placeholder="Search friends…" autocomplete="off">
+          <div class="side-meta"><span id="fcount"></span><button id="clear">Clear selection</button></div>
+        </div>
+        <ul class="friends" id="friends"></ul>
+      </aside>
+      <main>
+        <header class="top">
+          <div class="chips" id="chips"></div>
+          <div class="toolbar">
+            <div class="seg" id="mode">
+              <button data-mode="all" class="on" title="Games that you and every selected friend own">Everyone owns</button>
+              <button data-mode="any" title="Your games owned by at least one selected friend">Anyone owns</button>
+            </div>
+            <select id="sort">
+              <option value="name">Sort: Name</option>
+              <option value="owners">Sort: Most owners</option>
+              <option value="playtime">Sort: My playtime</option>
+            </select>
+            <input class="search" id="gq" placeholder="Filter games…" autocomplete="off">
+            <span class="count" id="count"></span>
+          </div>
+        </header>
+        <div id="notices"></div>
+        <div class="results" id="results"></div>
+      </main>
+    </div>`;
+
+  $("#fq").addEventListener("input", e => { state.friendQuery = e.target.value; renderFriends(); });
+  $("#gq").addEventListener("input", e => { state.gameQuery = e.target.value; renderResults(); });
+  $("#sort").addEventListener("change", e => { state.sort = e.target.value; renderResults(); });
+  $("#clear").addEventListener("click", () => { state.selected = []; renderFriends(); renderChips(); renderResults(); });
+  $("#mode").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.mode = b.dataset.mode;
+    document.querySelectorAll("#mode button").forEach(x => x.classList.toggle("on", x === b));
+    renderResults();
+  });
+  $("#friends").addEventListener("click", e => {
+    const li = e.target.closest(".friend"); if (li) toggle(li.dataset.id);
+  });
+  $("#chips").addEventListener("click", e => {
+    const b = e.target.closest("button[data-id]"); if (b) toggle(b.dataset.id);
+  });
+}
+
+function toggle(id) {
+  const i = state.selected.indexOf(id);
+  if (i >= 0) state.selected.splice(i, 1); else state.selected.push(id);
+  renderFriends(); renderChips();
+  loadLibraries([id]);
+}
+
+const STATUS = ["Offline", "Online", "Busy", "Away", "Snooze", "Looking to trade", "Looking to play"];
+function statusLine(p) {
+  if (p.ingame) return `<span class="game">${esc(p.ingame)}</span>`;
+  if (p.state > 0) return `<span class="on">${STATUS[p.state] || "Online"}</span>`;
+  return `<span>Offline</span>`;
+}
+
+function renderMe() {
+  const m = state.me;
+  $("#me").innerHTML = `
+    <img src="${esc(m.avatar)}" alt="">
+    <div class="who"><b>${esc(m.name)}</b><span>${state.friends.length} friends</span></div>
+    <button class="icon-btn" id="refresh" title="Reload friends and libraries from Steam">↻</button>
+    <button class="icon-btn" id="settings" title="Change API key / account">⚙</button>`;
+  $("#refresh").onclick = () => loadFriends(true);
+  $("#settings").onclick = () => renderSetup();
+}
+
+function renderFriends() {
+  const q = state.friendQuery.trim().toLowerCase();
+  const list = state.friends
+    .filter(f => !q || f.name.toLowerCase().includes(q))
+    // online friends first, then alphabetical
+    .sort((a, b) => (b.state > 0) - (a.state > 0) || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  $("#fcount").textContent = `${state.selected.length} selected`;
+  $("#friends").innerHTML = list.length ? list.map(f => `
+    <li class="friend ${state.selected.includes(f.steamid) ? "sel" : ""}" data-id="${f.steamid}">
+      <span class="check"></span>
+      <img src="${esc(f.avatar)}" alt="" loading="lazy">
+      <div class="nm"><b>${esc(f.name)}</b>${statusLine(f)}</div>
+    </li>`).join("") : `<li class="empty">No friends match.</li>`;
+}
+
+const person = id => id === state.me?.steamid ? state.me : state.friends.find(f => f.steamid === id);
+
+function renderChips() {
+  if (!$("#chips")) return;
+  if (!state.selected.length) {
+    $("#chips").innerHTML = `<span class="hint">Click friends on the left to compare libraries.</span>`;
+    return;
+  }
+  $("#chips").innerHTML = state.selected.map(id => {
+    const p = person(id), lib = state.libs[id];
+    const cls = lib === "loading" ? "loading" : (lib?.private || lib?.error) ? "private" : "";
+    const tip = lib === "loading" ? "Loading library…" : lib?.private ? "Game library is private" :
+      lib?.error ? lib.error : `${lib?.games.length ?? 0} games`;
+    return `<span class="chip ${cls}" title="${esc(tip)}"><img src="${esc(p?.avatar)}" alt="">${esc(p?.name)}
+      <button data-id="${id}" aria-label="Remove ${esc(p?.name)}">×</button></span>`;
+  }).join("");
+}
+
+function renderResults() {
+  const res = $("#results"); if (!res) return;
+  const notices = [];
+  if (state.error) notices.push(`<div class="notice err">${esc(state.error)}</div>`);
+
+  const meLib = state.me && state.libs[state.me.steamid];
+  if (!state.me || !meLib || meLib === "loading") {
+    $("#notices").innerHTML = notices.join("");
+    res.innerHTML = state.error ? "" : `<div class="empty"><div class="spinner"></div>Loading your library…</div>`;
+    $("#count").textContent = "";
+    return;
+  }
+  if (meLib.private || meLib.error) {
+    notices.push(`<div class="notice err">${meLib.error ? esc(meLib.error) :
+      "Your own game library looks private. In Steam → Profile → Edit Profile → Privacy Settings, set “Game details” to Public."}</div>`);
+  }
+
+  const loading = state.selected.filter(id => state.libs[id] === "loading");
+  const usable = state.selected.filter(id => {
+    const l = state.libs[id]; return l && l !== "loading" && !l.private && !l.error;
+  });
+  const blocked = state.selected.filter(id => {
+    const l = state.libs[id]; return l && l !== "loading" && (l.private || l.error);
+  });
+  if (blocked.length) {
+    notices.push(`<div class="notice">Skipping ${blocked.map(id => `<b>${esc(person(id)?.name)}</b>`).join(", ")} —
+      ${blocked.length === 1 ? "their game library is" : "their game libraries are"} private (or couldn't be loaded).</div>`);
+  }
+  $("#notices").innerHTML = notices.join("");
+
+  if (!state.selected.length) {
+    $("#count").textContent = `${meLib.games.length} games in your library`;
+    res.innerHTML = `<div class="empty"><h2>Pick some friends</h2>Select one or more friends on the left to see the games you have in common.</div>`;
+    return;
+  }
+  if (loading.length && !usable.length) {
+    $("#count").textContent = "";
+    res.innerHTML = `<div class="empty"><div class="spinner"></div>Loading libraries…</div>`;
+    return;
+  }
+
+  // appid -> set of selected friends who own it
+  const ownSets = usable.map(id => ({ id, set: new Set(state.libs[id].games.map(g => g.appid)) }));
+  let rows = meLib.games.map(g => ({ ...g, owners: ownSets.filter(o => o.set.has(g.appid)).map(o => o.id) }));
+  rows = state.mode === "all"
+    ? rows.filter(r => r.owners.length === usable.length)
+    : rows.filter(r => r.owners.length > 0);
+
+  const q = state.gameQuery.trim().toLowerCase();
+  if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q));
+
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  rows.sort(state.sort === "owners" ? (a, b) => b.owners.length - a.owners.length || byName(a, b)
+          : state.sort === "playtime" ? (a, b) => b.playtime - a.playtime || byName(a, b)
+          : byName);
+
+  $("#count").textContent = `${rows.length} game${rows.length === 1 ? "" : "s"}${loading.length ? " · loading more…" : ""}`;
+  if (!rows.length) {
+    res.innerHTML = `<div class="empty"><h2>No games in common</h2>${state.mode === "all" && usable.length > 1
+      ? "Try “Anyone owns” to see games at least one of them has." : "Nothing matches."}</div>`;
+    return;
+  }
+
+  res.innerHTML = `<div class="grid">${rows.map(r => {
+    const hrs = r.playtime ? `${(r.playtime / 60).toFixed(r.playtime < 600 ? 1 : 0)} h played` : "Never played";
+    const all = r.owners.length === usable.length;
+    return `
+    <a class="game" href="https://store.steampowered.com/app/${r.appid}/" target="_blank" rel="noopener">
+      <div class="art"><img src="https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${r.appid}/header.jpg"
+        alt="" loading="lazy" data-icon="${esc(r.icon || "")}" data-appid="${r.appid}"></div>
+      <div class="body">
+        <div class="title">${esc(r.name)}</div>
+        <div class="meta">
+          <span>${hrs}</span>
+          ${state.mode === "any" ? `<span class="badge ${all ? "all" : ""}">${r.owners.length}/${usable.length}</span>` : ""}
+          <span class="owners">${r.owners.slice(0, 6).map(id => {
+            const p = person(id); return `<img src="${esc(p?.avatar)}" title="${esc(p?.name)}" alt="">`;
+          }).join("")}</span>
+        </div>
+      </div>
+    </a>`;
+  }).join("")}</div>`;
+}
+
+// Fall back from header art → small icon → nothing, for apps without store art.
+document.addEventListener("error", e => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.dataset.appid) return;
+  if (img.dataset.icon && !img.classList.contains("icon")) {
+    img.classList.add("icon");
+    img.src = `https://media.steampowered.com/steamcommunity/public/images/apps/${img.dataset.appid}/${img.dataset.icon}.jpg`;
+  } else {
+    img.remove();
+  }
+}, true);
+
+// Heartbeat: the server shuts itself down once no tab has checked in for a while.
+const TAB_ID = crypto.randomUUID();
+let serverGone = false;
+async function ping() {
+  try {
+    await fetch(`/api/ping?tab=${TAB_ID}`, { cache: "no-store" });
+    if (serverGone) { serverGone = false; $("#gone")?.remove(); }
+  } catch {
+    if (serverGone) return;
+    serverGone = true;
+    const d = document.createElement("div");
+    d.id = "gone"; d.className = "notice err";
+    d.style.cssText = "position:fixed;left:50%;bottom:20px;transform:translateX(-50%);margin:0;z-index:10";
+    d.textContent = "The app has stopped. Relaunch Steam Common Games from your app menu.";
+    document.body.append(d);
+  }
+}
+ping();
+setInterval(ping, 5000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) ping(); });
+addEventListener("pagehide", () => navigator.sendBeacon(`/api/bye?tab=${TAB_ID}`));
+
+boot().catch(err => { $("#root").innerHTML = `<div class="empty">${esc(err.message)}</div>`; });
+</script>
+</body>
+</html>
